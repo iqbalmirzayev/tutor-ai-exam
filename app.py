@@ -21,7 +21,17 @@ from pptx import Presentation
 from pptx.util import Inches as PptInches
 from fpdf import FPDF
 import tempfile
+import torch
 
+# --- 🛡️ PYTORCH 2.6+ TƏHLÜKƏSİZLİK XƏTASI ÜÇÜN DÜZƏLİŞ ---
+try:
+    from ultralytics.nn.tasks import RTDETRDetectionModel
+    torch.serialization.add_safe_globals([RTDETRDetectionModel])
+except Exception as e:
+    pass # Əgər versiya köhnədirsə bu kod lazım olmayacaq
+# -------------------------------------------------------
+
+# ... sonra sənin MODEL_URL və load_model funksiyan gəlsin
 import asyncio
 from aiogram import Bot
 # from notifier import send_telegram_notification
