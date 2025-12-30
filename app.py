@@ -516,9 +516,32 @@ if uploaded_file:
             st.sidebar.download_button("📦 ZIP (Şəkillər)", files["zip"], "sinaq_sekiller.zip", "application/zip")
 
     # --- İŞ MASASI ---
+    # st.divider()
+    # current_idx = st.session_state['CURRENT_PAGE_IDX']
     st.divider()
     current_idx = st.session_state['CURRENT_PAGE_IDX']
+    st.write("### 🔍 DEBUG INFO")
+    temp_dir = st.session_state.get('TEMP_DIR')
+    st.write(f"📁 TEMP_DIR: `{temp_dir}`")
+    st.write(f"📁 TEMP_DIR mövcuddur: `{os.path.exists(temp_dir) if temp_dir else False}`")
+    if temp_dir and os.path.exists(temp_dir):
+        files = os.listdir(temp_dir)
+    st.write(f"📂 Qovluqda olan fayllar ({len(files)}): {files[:10]}")  # İlk 10-u göstər
+
+    image_path = os.path.join(temp_dir, f"page_{current_idx}.png") if temp_dir else None
+    st.write(f"🖼️ Axtarılan fayl: `{image_path}`")
+    st.write(f"✅ Fayl mövcuddur: `{os.path.exists(image_path) if image_path else False}`")
+
     opencv_image = get_page_image_from_disk(current_idx)
+    st.write(f"🎨 opencv_image type: `{type(opencv_image)}`")
+
+    if opencv_image is not None:
+        st.write(f"📐 Shape: `{opencv_image.shape}`")
+        st.write(f"📊 dtype: `{opencv_image.dtype}`")
+        st.write(f"🔢 Min/Max values: `{opencv_image.min()}` / `{opencv_image.max()}`")
+    else:
+        st.error("❌ opencv_image = None")
+        st.stop()
 
     # Scaling
     orig_h, orig_w = opencv_image.shape[:2]
