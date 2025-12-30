@@ -120,7 +120,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- AYARLAR ---
-MODEL_PATH = "best.pt"
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(CURRENT_DIR, "best.pt")
 CANVAS_MAX_WIDTH = 800  
 STROKE_COLOR = "#FF0000"
 STROKE_WIDTH = 3
@@ -128,6 +129,13 @@ STROKE_WIDTH = 3
 # --- MODELİ KEŞLƏ ---
 @st.cache_resource
 def load_model():
+    if not os.path.exists(MODEL_PATH):
+        # Əgər hələ də tapmasa, proqramın içində olduğu qovluğu yoxla
+        alternative_path = os.path.join(os.getcwd(), "best.pt")
+        if os.path.exists(alternative_path):
+            return YOLO(alternative_path)
+        st.error(f"❌ '{MODEL_PATH}' tapılmadı!")
+        return None
     return YOLO(MODEL_PATH)
 
 def cleanup_old_sessions(base_dir="sessions", max_age_hours=24):
