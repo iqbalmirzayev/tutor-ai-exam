@@ -23,6 +23,9 @@ from roboflow import Roboflow # Yeni yüngül kitabxana
 import asyncio
 from aiogram import Bot
 
+
+# Bu funksiyadan sonra kodda şəkli göstərən hissəni (st.image) belə dəyiş:
+# st.image(f"data:image/png;base64,{get_image_base64(opencv_image)}", use_column_width=True)
 # --- TELEGRAM AYARLARI ---
 # Məxfi məlumatları Secrets-dən oxuyuruq
 TOKEN = st.secrets["TELEGRAM_TOKEN"]
