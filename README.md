@@ -4,7 +4,7 @@
 
 ## 🎥 Demo
 
-https://github.com/user-attachments/assets/d9dfaec8-aa29-464e-b509-3305799990b9
+https://github.com/user-attachments/assets/d76f823b-c5e5-4e76-a314-b1f3b2ffe6ab
 
 *(Watch the AI in action)*
 
@@ -13,6 +13,17 @@ https://github.com/user-attachments/assets/d9dfaec8-aa29-464e-b509-3305799990b9
 - 🧠 **AI-Powered:** Uses a custom **YOLOv8** model (`best.pt`) for precise detection.
 - 🛠️ **Interactive Editor:** Manually adjust, swap, or delete questions via a visual canvas.
 - 📂 **Multi-Format Export:** Supports **.docx**, **.pptx**, **.pdf**, and **.zip**.
+
+## 🤖 Model Performance
+
+The local **YOLOv8** model has been trained on a custom dataset to ensure high accuracy in detecting question blocks.
+
+| Metric | Value | Description |
+| :--- | :--- | :--- |
+| **mAP@50** | **87.4%** | Overall detection accuracy |
+| **Precision** | **90.2%** | Accuracy of positive detections |
+| **Recall** | **84.4%** | Ability to find all questions |
+| **Speed** | **~30ms** | Inference time per page (GPU) |
 
 ## 🚀 Quick Start
 
