@@ -3,6 +3,7 @@ from PIL import Image
 import cv2
 import numpy as np
 import shutil
+import urllib.request
 # from streamlit.runtime.scriptrunner import add_script_run_context
 import os
 import threading
@@ -120,8 +121,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- AYARLAR ---
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(CURRENT_DIR, "best.pt")
+MODEL_PATH = "best.pt"
+# Sənin GitHub-dakı modelinin birbaşa linki
+MODEL_URL = "https://github.com/iqbalmirzayev/tutor-ai-exam/raw/master/best.pt"
 CANVAS_MAX_WIDTH = 800  
 STROKE_COLOR = "#FF0000"
 STROKE_WIDTH = 3
@@ -129,14 +131,19 @@ STROKE_WIDTH = 3
 # --- MODELİ KEŞLƏ ---
 @st.cache_resource
 def load_model():
-    if not os.path.exists(MODEL_PATH):
-        # Əgər hələ də tapmasa, proqramın içində olduğu qovluğu yoxla
-        alternative_path = os.path.join(os.getcwd(), "best.pt")
-        if os.path.exists(alternative_path):
-            return YOLO(alternative_path)
-        st.error(f"❌ '{MODEL_PATH}' tapılmadı!")
-        return None
+    # Əgər fayl yoxdursa və ya ölçüsü çox kiçikdirsə (LFS problemi)
+    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
+        with st.spinner("🚀 Model ilk dəfə serverə endirilir, xahiş olunur gözləyin..."):
+            urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+    
     return YOLO(MODEL_PATH)
+
+try:
+    model = load_model()
+except Exception as e:
+    st.error(f"❌ Model yüklənmədi: {e}")
+    st.stop()
+
 
 def cleanup_old_sessions(base_dir="sessions", max_age_hours=24):
     import time
