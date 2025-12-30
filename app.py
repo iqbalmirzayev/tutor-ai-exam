@@ -3,8 +3,6 @@ from PIL import Image
 import cv2
 import numpy as np
 import shutil
-import urllib.request
-# from streamlit.runtime.scriptrunner import add_script_run_context
 import os
 import threading
 import json
@@ -13,7 +11,6 @@ import io
 import zipfile
 import uuid
 import fitz  # PyMuPDF
-from ultralytics import YOLO
 from streamlit_drawable_canvas import st_canvas
 from docx import Document
 from docx.shared import Inches
@@ -21,71 +18,46 @@ from pptx import Presentation
 from pptx.util import Inches as PptInches
 from fpdf import FPDF
 import tempfile
-import torch
+from roboflow import Roboflow # Yeni yüngül kitabxana
 
-# --- 🛡️ PYTORCH 2.6+ TƏHLÜKƏSİZLİK XƏTASI ÜÇÜN DÜZƏLİŞ ---
-try:
-    from ultralytics.nn.tasks import RTDETRDetectionModel
-    torch.serialization.add_safe_globals([RTDETRDetectionModel])
-except Exception as e:
-    pass # Əgər versiya köhnədirsə bu kod lazım olmayacaq
-# -------------------------------------------------------
-
-# ... sonra sənin MODEL_URL və load_model funksiyan gəlsin
 import asyncio
 from aiogram import Bot
-# from notifier import send_telegram_notification
-# Telegram məlumatlarını bura daxil et
-# Tokenləri Streamlit-in gizli secrets bölməsindən oxuyuruq
-if "TELEGRAM_TOKEN" in st.secrets:
-    TOKEN = st.secrets["TELEGRAM_TOKEN"]
-    CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
-else:
-    # Lokalda test edəndə xəta verməsin deyə (və ya bura öz tokenini müvəqqəti yaza bilərsən)
-    TOKEN = "BOŞ"
-    CHAT_ID = "BOŞ"
 
+# --- TELEGRAM AYARLARI ---
+# Məxfi məlumatları Secrets-dən oxuyuruq
+TOKEN = st.secrets["TELEGRAM_TOKEN"]
+CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
 async def _async_send_notification(message):
     """Asinxron bildiriş göndərmə funksiyası."""
     bot = Bot(token=TOKEN)
     try:
         await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode="Markdown")
     finally:
-        # Sessiyanı bağlamaq vacibdir (yaxşı vərdiş!)
         await bot.session.close()
 
 def send_telegram_notification(message):
     """Streamlit daxilində çağırmaq üçün təhlükəsiz sinxron körpü."""
-    if TOKEN == "BOŞ" or TOKEN is None:
-        return
     try:
-        # Yeni bir hadisə döngəsi yaradırıq
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(_async_send_notification(message))
         loop.close()
     except Exception as e:
         print(f"Bildiriş xətası: {e}")
+
 # --- 1. SƏHİFƏ TƏNZİMLƏMƏSİ ---
 st.set_page_config(page_title="TutorAI", layout="wide")
 
 # --- CSS (DİZAYN) ---
 st.markdown("""
     <style>
-    /* 1. Ümumi Arxa Fon və Şrift */
-    .stApp {
-        background-color: #0E1117;
-    }
-    
-    /* 2. Şəkillərin Dizaynı */
+    .stApp { background-color: #0E1117; }
     .stImage img { 
         border-radius: 12px; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
         max-height: 300px !important; 
         object-fit: contain;
     }
-
-    /* 3. Düymələrin Dizaynı (Daha modern, hover effekti ilə) */
     div.stButton > button { 
         width: 100%; 
         border-radius: 8px; 
@@ -99,62 +71,49 @@ st.markdown("""
         color: #00D4FF; 
         background-color: #262730;
     }
-    
-    /* 4. "Sil" düyməsi üçün xüsusi rəng (Qırmızımtıl) */
-    div.stButton > button:active {
-        transform: scale(0.98);
-    }
-
-    /* 5. İnput Qutuları (Səhifə nömrəsi yazılan yer) */
+    div.stButton > button:active { transform: scale(0.98); }
     div[data-testid="stNumberInput"] input { 
         text-align: center; 
         font-weight: bold; 
         border-radius: 8px;
     }
-
-    /* 6. Sidebar (Yan Panel) Dizaynı */
     [data-testid="stSidebar"] {
         background-color: #161B22;
         border-right: 1px solid #30363D;
     }
-    
-    /* 7. Streamlit-in standart Header və Footer-ini gizlət */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    
-    /* 8. Kart Dizaynı (Sual qutuları) */
-    [data-testid="stVerticalBlock"] > [style*="flex-direction: column;"] > [data-testid="stVerticalBlock"] {
-        /* Bu hissə konteynerlərə aiddir, border=True olanda işləyir */
-    }
     </style>
 """, unsafe_allow_html=True)
 
 # --- AYARLAR ---
-MODEL_PATH = "best.pt"
-# Sənin GitHub-dakı modelinin birbaşa linki
-MODEL_URL = "https://github.com/iqbalmirzayev/tutor-ai-exam/raw/master/best.pt"
 CANVAS_MAX_WIDTH = 800  
 STROKE_COLOR = "#FF0000"
 STROKE_WIDTH = 3
 
-# --- MODELİ KEŞLƏ ---
-@st.cache_resource
-def load_model():
-    # Əgər fayl yoxdursa və ya ölçüsü çox kiçikdirsə (LFS problemi)
-    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
-        with st.spinner("🚀 Model ilk dəfə serverə endirilir, xahiş olunur gözləyin..."):
-            urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-    
-    return YOLO(MODEL_PATH)
+# --- 🚀 ROBOFLOW MODEL KONFİQURASİYASI ---
+# RF_API_KEY = "iAgaJF1rgnEGuhpdmjsz"
+# Açarı "Secrets"-dən oxuyuruq
+RF_API_KEY = st.secrets["ROBOFLOW_API_KEY"]
+RF_PROJECT = "exam-question-detector-f37if"
+RF_VERSION = 8
 
+@st.cache_resource
+def load_roboflow_model():
+    """Roboflow API Modelini Yükləyir (Serverə heç nə endirmir)."""
+    rf = Roboflow(api_key=RF_API_KEY)
+    project = rf.workspace().project(RF_PROJECT)
+    return project.version(RF_VERSION).model
+
+# Modeli yükləyirik
 try:
-    model = load_model()
+    model = load_roboflow_model()
 except Exception as e:
-    st.error(f"❌ Model yüklənmədi: {e}")
+    st.error(f"❌ Roboflow API Xətası: {e}")
     st.stop()
 
-
+# --- SESSİYA TEMİZLİYİ ---
 def cleanup_old_sessions(base_dir="sessions", max_age_hours=24):
     import time
     if not os.path.exists(base_dir): return
@@ -166,58 +125,74 @@ def cleanup_old_sessions(base_dir="sessions", max_age_hours=24):
                 shutil.rmtree(folder_path)
             except: pass
 
-if 'file_key' not in st.session_state:
-    st.session_state.file_key = 0
+if 'file_key' not in st.session_state: st.session_state.file_key = 0
+if 'uploaded_pdf' not in st.session_state: st.session_state.uploaded_pdf = None
+cleanup_old_sessions()
 
-if 'uploaded_pdf' not in st.session_state:
-    st.session_state.uploaded_pdf = None
-
-cleanup_old_sessions() # Proqram başlayanda işə düşür
+# --- YENİ ANALİZ FUNKSİYASI (ROBOFLOW) ---
+def get_roboflow_predictions(image_rgb):
+    """Şəkli Roboflow API-yə göndərir və nəticələri alır."""
+    # Şəkli müvəqqəti fayl kimi yadda saxlayırıq
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+        # RGB-dən BGR-ə çeviririk (cv2.imwrite üçün)
+        img_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(tmp.name, img_bgr)
+        tmp_path = tmp.name
+    
+    try:
+        # API Sorğusu
+        prediction = model.predict(tmp_path, confidence=50, overlap=30).json()
+    except Exception as e:
+        print(f"Roboflow Error: {e}")
+        return []
+    finally:
+        # Müvəqqəti faylı silirik
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+            
+    raw_boxes = []
+    # Roboflow cavabını parse edirik
+    if 'predictions' in prediction:
+        for annot in prediction['predictions']:
+            # Roboflow: x, y (mərkəz), width, height -> Bizim: x1, y1, x2, y2
+            x = annot['x']
+            y = annot['y']
+            w = annot['width']
+            h = annot['height']
+            raw_boxes.append([int(x - w/2), int(y - h/2), int(x + w/2), int(y + h/2)])
+            
+    return raw_boxes
 
 def background_analyzer(user_dir, page_list):
-    """Arxa planda verilmiş səhifələri analiz edib JSON kimi yadda saxlayır."""
+    """Arxa planda verilmiş səhifələri Roboflow ilə analiz edib JSON saxlayır."""
     for p_idx in page_list:
         json_path = os.path.join(user_dir, f"results_{p_idx}.json")
         img_path = os.path.join(user_dir, f"page_{p_idx}.png")
         
-        # Əgər bu səhifə artıq analiz olunubsa, keç
         if os.path.exists(json_path):
             continue
             
         if os.path.exists(img_path):
             img = cv2.imread(img_path)
+            if img is None: continue
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             
-            # AI Analizi
-            results = model.predict(img_rgb, conf=0.5, iou=0.45, verbose=False)[0]
-            detected_boxes = results.boxes.data.tolist()
-            
-            raw_boxes = []
-            for db in detected_boxes:
-                if len(db) >= 4:
-                    raw_boxes.append([int(x) for x in db[:4]])
+            # API funksiyasını çağırırıq
+            raw_boxes = get_roboflow_predictions(img_rgb)
             
             # Filtrləmə və Sıralama
             final_boxes = filter_overlapping_boxes(raw_boxes, iou_threshold=0.3)
             sorted_boxes = sort_boxes_column_wise(final_boxes, x_threshold=50)
             
-            # Nəticəni JSON kimi diskə yazırıq
             with open(json_path, 'w') as f:
                 json.dump(sorted_boxes, f)
 
-try:
-    model = load_model()
-except Exception:
-    st.error(f"❌ '{MODEL_PATH}' tapılmadı! Faylı qovluğa əlavə et.")
-    st.stop()
-
-# --- SESSİYA YADDAŞI ---
+# --- SESSİYA STATE ---
 if 'ALL_QUESTIONS' not in st.session_state: st.session_state['ALL_QUESTIONS'] = {} 
 if 'CURRENT_PAGE_IDX' not in st.session_state: st.session_state['CURRENT_PAGE_IDX'] = 0
 if 'CANVAS_REFRESH_KEYS' not in st.session_state: st.session_state['CANVAS_REFRESH_KEYS'] = {}
 
-# --- YARDIMÇI FUNKSİYALAR ---
-
+# --- KÖMƏKÇİ FUNKSİYALAR ---
 def filter_overlapping_boxes(boxes, iou_threshold=0.3):
     if not boxes: return []
     boxes = np.array(boxes)
@@ -254,7 +229,6 @@ def get_page_image_from_disk(page_num):
     if not temp_dir: return None
     image_path = os.path.join(temp_dir, f"page_{page_num}.png")
     if os.path.exists(image_path):
-        # Faylı birbaşa oxuyub RGB-yə çeviririk
         img = cv2.imread(image_path)
         if img is None: return None
         return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -302,10 +276,10 @@ def process_image_for_export(img_rgb, invert=False):
 st.title("🛠 TutorAI")
 st.markdown("*Süni intellekt dəstəkli sual kəsmə və redaktə sistemi*", unsafe_allow_html=True)
 st.divider()
+
 if 'session_id' not in st.session_state:
     st.session_state['session_id'] = str(uuid.uuid4())
 
-# 2. Qovluq strukturunu qururuq: sessions / <user_id>
 base_dir = "sessions"
 if not os.path.exists(base_dir):
     os.makedirs(base_dir)
@@ -314,55 +288,36 @@ user_dir = os.path.join(base_dir, st.session_state['session_id'])
 if not os.path.exists(user_dir):
     os.makedirs(user_dir)
 
-# Sessiyada qovluq yolunu yadda saxlayırıq ki, digər funksiyalar bilsin
 st.session_state['TEMP_DIR'] = user_dir
 
-# =========================================================================
-# --- DÜZƏLİŞ EDİLƏN HİSSƏ (FILE UPLOADER & REFRESH LOGIC) ---
-# =========================================================================
-
-# 1. Əgər fayl yoxdursa -> Uploader-i göstər
+# --- FILE UPLOADER & REFRESH LOGIC ---
 if st.session_state.uploaded_pdf is None:
     uploaded_file = st.file_uploader(
         "Fayl yüklə (PDF tövsiyə olunur):", 
         type=["pdf", "jpg", "png"], 
-        key=f"uploader_{st.session_state.file_key}" # Açar hər dəfə dəyişir
+        key=f"uploader_{st.session_state.file_key}"
     )
-    
-    # Fayl seçilən kimi yaddaşa atıb səhifəni yeniləyirik
     if uploaded_file is not None:
         st.session_state.uploaded_pdf = uploaded_file
         st.rerun()
-    
-    # Fayl yoxdursa, aşağıdakı kodlar xəta verməməsi üçün dayandırırıq
     st.stop()
-
-# 2. Fayl varsa -> Qutunu gizlət, əvəzinə Sil düyməsini göstər
 else:
-    # Faylı session_state-dən götürürük ki, kodun qalanı işləsin
     uploaded_file = st.session_state.uploaded_pdf
-
     col_info, col_del = st.columns([0.85, 0.15])
     with col_info:
         st.success(f"📂 Hazırda işlənən fayl: **{uploaded_file.name}**")
     with col_del:
         if st.button("❌ Sil", use_container_width=True):
-            st.session_state.uploaded_pdf = None # Yaddaşı təmizlə
-            st.session_state.file_key += 1       # Uploader-i sıfırla
-            st.rerun()                           # Səhifəni yenilə
+            st.session_state.uploaded_pdf = None
+            st.session_state.file_key += 1
+            st.rerun()
 
-# =========================================================================
-# --- BURADAN AŞAĞI HEÇ NƏ DƏYİŞMƏYİB (Orjinal Kod) ---
-# =========================================================================
-
+# --- FAYL EMALI ---
 if uploaded_file:
-    # Faylı unikal etmək üçün ad + ölçü + sessiya ID-sini birləşdiririk
-    
     file_id = f"{uploaded_file.name}_{uploaded_file.size}"
     
     if st.session_state.get('LAST_FILE_ID') != file_id:
         send_telegram_notification(f"📢 *TutorAI istifadə edildi!*\n\n📄 Fayl: `{uploaded_file.name}`")
-        # 1. KÖHNƏ DATA-NIN TƏMİZLƏNMƏSİ
         st.session_state['ALL_QUESTIONS'] = {}
         st.session_state['CURRENT_PAGE_IDX'] = 0
         st.session_state['LAST_FILE_ID'] = file_id
@@ -370,7 +325,6 @@ if uploaded_file:
         if 'EXPORT_FILES' in st.session_state:
             del st.session_state['EXPORT_FILES']
 
-        # 2. DİSKDƏKİ KÖHNƏ FAYLLARI SİLİRİK
         for f in os.listdir(user_dir):
             try:
                 os.remove(os.path.join(user_dir, f))
@@ -379,13 +333,11 @@ if uploaded_file:
         with st.spinner("📂 Yeni fayl hazırlanır..."):
             file_bytes = uploaded_file.getvalue()
             
-            # PDF Emalı
             if uploaded_file.type == "application/pdf":
                 doc = fitz.open(stream=file_bytes, filetype="pdf")
                 total_p = len(doc) 
                 st.session_state['TOTAL_PAGES'] = total_p
                 
-                # İlk 2 səhifəni dərhal emal et
                 initial_pages = min(2, len(doc))
                 for i in range(initial_pages):
                     page = doc[i]
@@ -399,7 +351,6 @@ if uploaded_file:
                             p = d[i]
                             p.get_pixmap(matrix=fitz.Matrix(2, 2)).save(os.path.join(u_dir, f"page_{i}.png"))
                     
-                    # İlk 5 səhifəni analizə göndəririk
                     pages_to_analyze_inner = list(range(min(5, total_pages_val)))
                     background_analyzer(u_dir, pages_to_analyze_inner)
 
@@ -408,7 +359,6 @@ if uploaded_file:
                     args=(user_dir, file_bytes, total_p)
                 ).start()
             
-            # Şəkil emalı (PDF deyilsə)
             else:
                 st.session_state['TOTAL_PAGES'] = 1
                 nparr = np.frombuffer(file_bytes, np.uint8)
@@ -446,11 +396,9 @@ if uploaded_file:
         if st.button("Növbəti ➡️", disabled=(st.session_state['CURRENT_PAGE_IDX'] == total_pages - 1)):
             st.session_state['CURRENT_PAGE_IDX'] += 1
             curr = st.session_state['CURRENT_PAGE_IDX']
-            
             if (curr + 1) % 5 == 0:
                 next_batch = list(range(curr + 1, min(curr + 6, total_pages)))
                 threading.Thread(target=background_analyzer, args=(user_dir, next_batch)).start()
-            
             st.rerun()
 
     # --- YAN PANEL ---
@@ -474,14 +422,12 @@ if uploaded_file:
         st.sidebar.subheader("📤 Çıxarış Ayarları")
         dark_mode = st.sidebar.toggle("🌙 Dark Mode (Inverse)", value=False, help="Şəkillərin rəngini tərsinə çevir.")
 
-        # --- FAYLLARI HAZIRLA DÜYMƏSİ ---
         if st.sidebar.button("⚙️ Sınağı Endir", type="primary"):
             progress_bar = st.sidebar.progress(0)
             status_text = st.sidebar.empty()
             
             with st.spinner("Fayllar hazırlanır..."):
                 all_export_images = []
-                
                 total_to_process = len(range(total_pages))
                 for idx, page_num in enumerate(range(total_pages)):
                     progress = (idx + 1) / total_to_process
@@ -559,10 +505,8 @@ if uploaded_file:
             status_text.empty()
             st.success("✅ Fayllar hazırdır! Aşağıdan yükləyə bilərsiniz.")
 
-        # --- YÜKLƏMƏ DÜYMƏLƏRİ ---
         if 'EXPORT_FILES' in st.session_state:
             files = st.session_state['EXPORT_FILES']
-            
             st.sidebar.download_button("📝 Word (.docx)", files["docx"], "sinaq.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
             st.sidebar.download_button("🖥️ PowerPoint (.pptx)", files["pptx"], "sinaq.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
             st.sidebar.download_button("🖨️ PDF (Sınaq)", files["pdf"], "sinaq.pdf", "application/pdf")
@@ -604,12 +548,8 @@ if uploaded_file:
                 pass
 
         with st.spinner(f"🔍 AI analiz edir... (Səhifə {current_idx + 1})"):
-            results = model.predict(opencv_image, conf=0.5, iou=0.45, verbose=False)[0]
-            detected_boxes = results.boxes.data.tolist()
-            raw_boxes = []
-            for db in detected_boxes:
-                if len(db) >= 4:
-                    raw_boxes.append([int(x) for x in db[:4]])
+            # YENİ ROBOFLOW FUNKSİYASINI ÇAĞIRIRIQ
+            raw_boxes = get_roboflow_predictions(opencv_image)
             
             final_filtered_boxes = filter_overlapping_boxes(raw_boxes, iou_threshold=0.3)
             sorted_boxes = sort_boxes_column_wise(final_filtered_boxes, x_threshold=50)
@@ -628,7 +568,6 @@ if uploaded_file:
     st.subheader(f"✏️ Səhifə {current_idx + 1}")
     
     alert_placeholder = st.empty()
-
     mode = st.radio("Rejim:", ("✋ Düzəliş", "➕ Yeni Sual"), horizontal=True, label_visibility="collapsed")
     drawing_mode = "transform" if mode == "✋ Düzəliş" else "rect"
     
@@ -680,7 +619,6 @@ if uploaded_file:
     st.write("---")
 
     final_boxes = st.session_state['ALL_QUESTIONS'].get(current_idx, [])
-
     start_num = 0
     if sequential_numbering:
         for p_idx in range(current_idx):
@@ -695,7 +633,6 @@ if uploaded_file:
                         idx = i + j
                         box = final_boxes[idx]
                         x1, y1, x2, y2 = map(int, box)
-                        
                         x1, y1 = max(0, x1), max(0, y1)
                         x2, y2 = min(orig_w, x2), min(orig_h, y2)
                         crop = opencv_image[y1:y2, x1:x2]
@@ -704,25 +641,20 @@ if uploaded_file:
                         
                         with st.container(border=True):
                             c_ctrl, c_img = st.columns([1, 5])
-                            
                             with c_ctrl:
                                 st.markdown(f"<h3 style='text-align: center; color: #FF4B4B;'>{display_number}</h3>", unsafe_allow_html=True)
                                 st.divider()
-                                
                                 if idx > 0:
                                     if st.button("⬆️", key=f"u_{current_idx}_{idx}"): 
                                         swap_questions(current_idx, idx, idx-1)
                                         st.rerun()
-                                
                                 if idx < len(final_boxes) - 1:
                                     if st.button("⬇️", key=f"d_{current_idx}_{idx}"): 
                                         swap_questions(current_idx, idx, idx+1)
                                         st.rerun()
-                                
                                 if st.button("🗑️", key=f"r_{current_idx}_{idx}"): 
                                     delete_question(current_idx, idx)
                                     st.rerun()
-                            
                             with c_img: 
                                 if crop.shape[0] > 0 and crop.shape[1] > 0:
                                     img_rgb = Image.fromarray(crop)
