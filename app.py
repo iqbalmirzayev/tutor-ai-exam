@@ -555,18 +555,39 @@ if uploaded_file:
 
     st.write("---")
     # Scaling
-    orig_h, orig_w = opencv_image.shape[:2]
-    if orig_w > CANVAS_MAX_WIDTH:
-        scale_factor = CANVAS_MAX_WIDTH / orig_w
-        new_w = CANVAS_MAX_WIDTH
-        new_h = int(orig_h * scale_factor)
-    else:
-        scale_factor = 1.0
-        new_w = orig_w
-        new_h = orig_h
+    # orig_h, orig_w = opencv_image.shape[:2]
+    # if orig_w > CANVAS_MAX_WIDTH:
+    #     scale_factor = CANVAS_MAX_WIDTH / orig_w
+    #     new_w = CANVAS_MAX_WIDTH
+    #     new_h = int(orig_h * scale_factor)
+    # else:
+    #     scale_factor = 1.0
+    #     new_w = orig_w
+    #     new_h = orig_h
+        
+    # resized_image = cv2.resize(opencv_image, (new_w, new_h))
+    # pil_image = Image.fromarray(resized_image)
+    # Scaling
+orig_h, orig_w = opencv_image.shape[:2]
+if orig_w > CANVAS_MAX_WIDTH:
+    scale_factor = CANVAS_MAX_WIDTH / orig_w
+    new_w = CANVAS_MAX_WIDTH
+    new_h = int(orig_h * scale_factor)
+else:
+    scale_factor = 1.0
+    new_w = orig_w
+    new_h = orig_h
         
     resized_image = cv2.resize(opencv_image, (new_w, new_h))
     pil_image = Image.fromarray(resized_image)
+
+    # 🔧 FIX: PIL image-i JPEG-ə çevir və yenidən aç (Canvas üçün)
+    buffer = io.BytesIO()
+    pil_image.save(buffer, format="JPEG", quality=95)
+    buffer.seek(0)
+    pil_image = Image.open(buffer)
+
+    st.write(f"🎨 PIL After JPEG Conversion: Mode={pil_image.mode}, Format={pil_image.format}")
 
     # --- AI ANALİZ / JSON OXUMA ---
     if current_idx not in st.session_state['ALL_QUESTIONS']:
