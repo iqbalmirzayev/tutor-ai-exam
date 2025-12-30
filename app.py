@@ -542,7 +542,18 @@ if uploaded_file:
     else:
         st.error("❌ opencv_image = None")
         st.stop()
+    # Debug info-dan SONRA
+    st.write("---")
+    st.write("### 🧪 Test: Şəkil Görünür?")
 
+    # Direct display test
+    st.image(opencv_image, caption="Test - OpenCV Image", width=400)
+
+    # PIL test
+    pil_test = Image.fromarray(opencv_image)
+    st.image(pil_test, caption="Test - PIL Image", width=400)
+
+    st.write("---")
     # Scaling
     orig_h, orig_w = opencv_image.shape[:2]
     if orig_w > CANVAS_MAX_WIDTH:
@@ -590,37 +601,110 @@ if uploaded_file:
             st.session_state['CANVAS_REFRESH_KEYS'][current_idx] += 1
             st.rerun()
 
-    # --- CANVAS ---
-    st.subheader(f"✏️ Səhifə {current_idx + 1}")
+    # # --- CANVAS ---
+    # st.subheader(f"✏️ Səhifə {current_idx + 1}")
     
+    # alert_placeholder = st.empty()
+    # mode = st.radio("Rejim:", ("✋ Düzəliş", "➕ Yeni Sual"), horizontal=True, label_visibility="collapsed")
+    # drawing_mode = "transform" if mode == "✋ Düzəliş" else "rect"
+    
+    # current_boxes = st.session_state['ALL_QUESTIONS'][current_idx]
+    # canvas_objects = []
+    # for box in current_boxes:
+    #     x1, y1, x2, y2 = box
+    #     canvas_objects.append({
+    #         "type": "rect", "left": x1 * scale_factor, "top": y1 * scale_factor,
+    #         "width": (x2 - x1) * scale_factor, "height": (y2 - y1) * scale_factor,
+    #         "stroke": STROKE_COLOR, "strokeWidth": STROKE_WIDTH, "fill": "rgba(0,0,0,0)"
+    #     })
+
+    # if current_idx not in st.session_state['CANVAS_REFRESH_KEYS']: st.session_state['CANVAS_REFRESH_KEYS'][current_idx] = 0
+    # refresh_count = st.session_state['CANVAS_REFRESH_KEYS'][current_idx]
+    
+    # canvas_result = st_canvas(
+    #     fill_color="rgba(0, 0, 0, 0)",
+    #     stroke_width=STROKE_WIDTH, stroke_color=STROKE_COLOR,
+    #     background_image=pil_image, update_streamlit=True,
+    #     height=new_h, width=new_w, drawing_mode=drawing_mode,
+    #     key=f"canvas_{st.session_state.get('LAST_FILE_ID', '')}_p{current_idx}_v{refresh_count}",
+    #     initial_drawing={"version": "4.4.0", "objects": canvas_objects}
+    # )
+
+    # updated_boxes = []
+    # if canvas_result.json_data:
+    #     for obj in canvas_result.json_data["objects"]:
+    #         if obj["type"] == "rect":
+    #             x = obj["left"] / scale_factor
+    #             y = obj["top"] / scale_factor
+    #             w = (obj["width"] * obj["scaleX"]) / scale_factor
+    #             h = (obj["height"] * obj["scaleY"]) / scale_factor
+    #             updated_boxes.append([int(x), int(y), int(x+w), int(y+h)])
+    
+    # has_changes = False
+    # if len(updated_boxes) != len(current_boxes): has_changes = True
+    # elif updated_boxes != current_boxes: has_changes = True
+
+    # if has_changes:
+    #     alert_placeholder.info("ℹ️ Diqqət: Dəyişiklik edilən zaman aşağıdakı 'Yenilə' düyməsini mütləq sıxın.")
+    #     col_btn, _ = st.columns([1, 4])
+    #     with col_btn:
+    #         if st.button("🔄 Yenilə", type="primary"):
+    #             st.session_state['ALL_QUESTIONS'][current_idx] = sort_boxes_column_wise(updated_boxes, x_threshold=50)
+    #             st.session_state['CANVAS_REFRESH_KEYS'][current_idx] += 1
+    #             st.rerun()
+
+    # st.write("---")
+    st.subheader(f"✏️ Səhifə {current_idx + 1}")
+
     alert_placeholder = st.empty()
     mode = st.radio("Rejim:", ("✋ Düzəliş", "➕ Yeni Sual"), horizontal=True, label_visibility="collapsed")
     drawing_mode = "transform" if mode == "✋ Düzəliş" else "rect"
-    
+
     current_boxes = st.session_state['ALL_QUESTIONS'][current_idx]
     canvas_objects = []
     for box in current_boxes:
         x1, y1, x2, y2 = box
         canvas_objects.append({
-            "type": "rect", "left": x1 * scale_factor, "top": y1 * scale_factor,
-            "width": (x2 - x1) * scale_factor, "height": (y2 - y1) * scale_factor,
-            "stroke": STROKE_COLOR, "strokeWidth": STROKE_WIDTH, "fill": "rgba(0,0,0,0)"
+            "type": "rect", 
+            "left": x1 * scale_factor, 
+            "top": y1 * scale_factor,
+            "width": (x2 - x1) * scale_factor, 
+            "height": (y2 - y1) * scale_factor,
+            "stroke": STROKE_COLOR, 
+            "strokeWidth": STROKE_WIDTH, 
+            "fill": "rgba(0,0,0,0)"
         })
 
-    if current_idx not in st.session_state['CANVAS_REFRESH_KEYS']: st.session_state['CANVAS_REFRESH_KEYS'][current_idx] = 0
+    if current_idx not in st.session_state['CANVAS_REFRESH_KEYS']: 
+        st.session_state['CANVAS_REFRESH_KEYS'][current_idx] = 0
     refresh_count = st.session_state['CANVAS_REFRESH_KEYS'][current_idx]
-    
-    canvas_result = st_canvas(
-        fill_color="rgba(0, 0, 0, 0)",
-        stroke_width=STROKE_WIDTH, stroke_color=STROKE_COLOR,
-        background_image=pil_image, update_streamlit=True,
-        height=new_h, width=new_w, drawing_mode=drawing_mode,
-        key=f"canvas_{st.session_state.get('LAST_FILE_ID', '')}_p{current_idx}_v{refresh_count}",
-        initial_drawing={"version": "4.4.0", "objects": canvas_objects}
-    )
+
+    # 🔧 Debug info
+    canvas_key = f"canvas_p{current_idx}_v{refresh_count}"
+    st.write(f"🔑 Canvas Key: `{canvas_key}`")
+    st.write(f"🎨 PIL Image: {pil_image.size}, Mode: {pil_image.mode}")
+
+    try:
+        canvas_result = st_canvas(
+            fill_color="rgba(0, 0, 0, 0)",
+            stroke_width=STROKE_WIDTH, 
+            stroke_color=STROKE_COLOR,
+            background_image=pil_image,
+            update_streamlit=True,
+            height=new_h, 
+            width=new_w, 
+            drawing_mode=drawing_mode,
+            key=canvas_key,
+            initial_drawing={"version": "4.4.0", "objects": canvas_objects}
+        )
+        st.write(f"✅ Canvas rendered successfully")
+    except Exception as e:
+        st.error(f"❌ Canvas Error: {e}")
+        st.image(pil_image, use_column_width=True)
+        canvas_result = None
 
     updated_boxes = []
-    if canvas_result.json_data:
+    if canvas_result and canvas_result.json_data:
         for obj in canvas_result.json_data["objects"]:
             if obj["type"] == "rect":
                 x = obj["left"] / scale_factor
@@ -628,7 +712,7 @@ if uploaded_file:
                 w = (obj["width"] * obj["scaleX"]) / scale_factor
                 h = (obj["height"] * obj["scaleY"]) / scale_factor
                 updated_boxes.append([int(x), int(y), int(x+w), int(y+h)])
-    
+
     has_changes = False
     if len(updated_boxes) != len(current_boxes): has_changes = True
     elif updated_boxes != current_boxes: has_changes = True
